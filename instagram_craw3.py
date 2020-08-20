@@ -34,7 +34,7 @@ time.sleep(3)
 word = "양재맛집"         #찾고자 하는 태그
 url = insta_searching(word)
 driver.get(url)
-time.sleep(3)
+time.sleep(2)
 
 # 예제 4-3 HTML에서 첫번째 게시글 찾아 클릭하기
 def select_first(driver):
@@ -47,14 +47,22 @@ select_first(driver)    # 함수 실행
 results = []
 
 import re
+import unicodedata
 from bs4 import BeautifulSoup
 from requests import get
+
 def get_content(driver):
     # ① 현재 페이지 html 정보 가져오기
     html = driver.page_source
     soup = BeautifulSoup(html, 'lxml',from_encoding='utf-8')
     
     #soup = BeautifulSoup(html, 'lxml')
+    # ② ID 가져오기 내용 가져오기
+    try:
+        insta_id = soup.select('div.e1e1d > span')[0].text
+    except:
+        insta_id = ' '
+    
     # ② 본문 내용 가져오기
     try:
         content = soup.select('div.C4VMK > span')[0].text
@@ -81,7 +89,13 @@ def get_content(driver):
         img_url = 0
     print(img_url)
     # ⑦ 수집한 정보 저장하기
-    data = [content, date, like, place, tags,img_url]
+    # 태그 데이터 자음 모음 합치기
+    content = unicodedata.normalize('NFC',content)
+    place = unicodedata.normalize('NFC',place)
+    
+    for i, tag in enumerate(tags): # 태그 데이터 자음 모음 합치기(tag list)
+        tags[i] = unicodedata.normalize('NFC',tag)
+    data = [insta_id,content, date, like, place, tags,img_url]
     return data
 
 get_content(driver)
@@ -93,7 +107,7 @@ def move_next(driver):
     
 move_next(driver)
 
-target = 5      # 크롤링할 게시글 수 (50개 너무 많아서 5개로 바꿈)
+target = 200      # 크롤링할 게시글 수 (50개 너무 많아서 5개로 바꿈)
 
 for i in range(target):
     # 게시글 수집에 오류 발생시(네트워크 문제 등의 이유로)  2초 대기 후, 다음 게시글로 넘어가도록 try, except 구문 활용
@@ -105,27 +119,38 @@ for i in range(target):
         time.sleep(2)
         move_next(driver)
     
-
-print(results[:2])
-
 import pandas as pd
 
+
+
+
+
+
+# 데이터 저장 부
+
 results_df = pd.DataFrame(results)
-results_df.columns = ['content','data','like','place','tags','img_url']
-results_df.to_excel('d:/source/instragram_crawling/data/3_1_crawling_jejudoMatJip.xlsx',encoding='utf-8')
+results_df.columns = ['index_col','insta_id','content','data','like','place','tags','img_url']
+results_df.drop_duplicates(subset = ['insta_id'] , inplace = True)
+results_df.to_excel('d:/source/instragram_crawling/data/3_1_crawling_yangjae.xlsx',encoding='utf-8')
 
-# 예제 4-8 여러 개의 저장파일 통합하기
-jeju_insta_df = pd.DataFrame( [ ] )
 
-folder = 'd:/source/instragram_crawling/data/'
-f_list = ['3_1_crawling_jejudoMatJip.xlsx']
-for fname in f_list:
-    fpath = folder + fname
-    temp = pd.read_excel(fpath)
-    jeju_insta_df = jeju_insta_df.append(temp)
+from konlpy.tag import Kkma
+from konlpy.utils import pprint
+from collections import Counter #빈도수 계산위한 사전형태 데이터 타입
 
-jeju_insta_df.columns =['index_col','content','data','like','place','tags','img_url']
+def get_tags(text, ntags=50):   # 빈도수 계산 함수
+    spliter = Kkma()
+    nouns = spliter.nouns(text) # text에서 명사 추출
+    count = Counter(nouns)      # 명사의 빈도 수 저장
+    return_list = []
+    for n, c in count.most_common(ntags):
+        temp = {'tag':n, 'count':c}
+        return_list.append(temp)
+    
+    return return_list
 
-# 예제 4-9 중복 데이터 제거하고 저장하기
-jeju_insta_df.drop_duplicates(subset = ['content'] , inplace = True)
-jeju_insta_df.to_excel('d:/source/instragram_crawling/data/3_1_crawling_raw.xlsx', index = False,encoding='utf-8')
+    
+    
+
+
+
